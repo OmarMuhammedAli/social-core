@@ -9,8 +9,6 @@ from urllib.parse import parse_qs as battery_parse_qs
 from urllib.parse import unquote, urlencode, urlparse, urlunparse
 
 import requests
-from requests.adapters import HTTPAdapter
-from requests.packages.urllib3.poolmanager import PoolManager
 
 import social_core
 
@@ -22,31 +20,6 @@ PARTIAL_TOKEN_SESSION_NAME = "partial_pipeline_token"
 
 
 social_logger = logging.getLogger("social")
-
-
-class SSLHttpAdapter(HTTPAdapter):
-    """ "
-    Transport adapter that allows to use any SSL protocol. Based on:
-    http://requests.rtfd.org/latest/user/advanced/#example-specific-ssl-version
-    """
-
-    def __init__(self, ssl_protocol):
-        self.ssl_protocol = ssl_protocol
-        super().__init__()
-
-    def init_poolmanager(self, connections, maxsize, block=False):
-        self.poolmanager = PoolManager(
-            num_pools=connections,
-            maxsize=maxsize,
-            block=block,
-            ssl_version=self.ssl_protocol,
-        )
-
-    @classmethod
-    def ssl_adapter_session(cls, ssl_protocol):
-        session = requests.Session()
-        session.mount("https://", SSLHttpAdapter(ssl_protocol))
-        return session
 
 
 def import_module(name):
@@ -302,7 +275,10 @@ class cache:
             cached_value = None
             if this.__class__ in self.cache:
                 last_updated, cached_value = self.cache[this.__class__]
-            if not cached_value or now - last_updated > self.ttl:
+
+            # ignoring this type issue is safe; if cached_value is returned, last_updated
+            # is also set, but the type checker doesn't know it.
+            if not cached_value or now - last_updated > self.ttl:  # type: ignore[reportOperatorIssue]
                 try:
                     cached_value = fn(this)
                     self.cache[this.__class__] = (now, cached_value)
@@ -312,7 +288,7 @@ class cache:
                         raise
             return cached_value
 
-        wrapped.invalidate = self._invalidate
+        wrapped.invalidate = self._invalidate  # type: ignore[reportFunctionMemberAccess]
         return wrapped
 
     def _invalidate(self):
